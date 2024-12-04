@@ -4,13 +4,28 @@ travel_day = {"l": 45, "h": 55}
 full_day = {"l": 75, "h": 85}
 
 def calculate(set):
+    days = {}
     total = 0
     current_dt = datetime.strptime(set[0]['start_dt'], '%m/%d/%y').date()
+
+    def add(day, amount):
+        nonlocal total
+        print(f"Adding {amount} for {day}")
+        total += amount
+        days[day] = amount
+
+    def remove(day, amount):
+        nonlocal total
+        print(f"Removing {amount} for {day}")
+        total -= amount
+        del days[day]
 
     for pidx, proj in enumerate(set):
         city_tp = proj['city_tp']
         city_tp_last = set[pidx-1]['city_tp']
         start_dt = datetime.strptime(proj['start_dt'], '%m/%d/%y').date()
+        end_dt = datetime.strptime(proj['end_dt'], '%m/%d/%y').date()
+        num_days = (end_dt - start_dt).days
 
         # Add gap days between projects to total
         if pidx > 0:
@@ -22,40 +37,47 @@ def calculate(set):
                     print(f"Adding {travel_day[city_tp]} to total cost for {current_dt} as a gap travel day for a {city_tp.upper()} cost city.")
                     total += travel_day[city_tp]
         
-        end_dt = datetime.strptime(proj['end_dt'], '%m/%d/%y').date()
-        num_days = (end_dt - start_dt).days
 
         for i, day in enumerate(start_dt + timedelta(n) for n in range(num_days + 1)):
             first_day = 0
             last_day = num_days
-            if i == first_day or i == last_day:
-                # Account for project days that overlap
-                if current_dt > day and pidx > 0:
-                    print(f"Removing {travel_day[city_tp_last]} from total cost for {day} as a travel day in a {city_tp_last.upper()} cost city.")
-                    # Remove day of last project from total
-                    total -= travel_day[city_tp_last]
-                    # If conflicting rates between projects, use the high cost rate
-                    if city_tp == "l" and city_tp_last == "h":
-                        print(f"Adding {full_day[city_tp_last]} to total cost for {day} as a full day in a {city_tp_last.upper()} cost city.")
-                        total += full_day[city_tp_last]
-                    else:
-                        print(f"Adding {full_day[city_tp]} to total cost for {day} as a full day in a {city_tp.upper()} cost city.")
-                        total += full_day[city_tp]
+
+
+            if pidx == 0:
+                if i == first_day:
+                    add(day, travel_day[city_tp])
+                elif i == last_day:
+                    add(day, travel_day[city_tp])
                 else:
-                    print(f"Adding {travel_day[city_tp]} to total cost for {day} as a travel day in a {city_tp.upper()} cost city")
-                    total += travel_day[city_tp]
+                    add(day, full_day[city_tp])
             else:
-                # Only add day to total if not overlapping
-                if current_dt <= day:
-                    print(f"Adding {full_day[city_tp]} to total cost for {day} as a full day in a {city_tp.upper()} cost city")
-                    total += full_day[city_tp]
-                elif pidx > 0:
-                    # If conflicting rates between projects, use the high cost rate
-                    if city_tp == "h" and city_tp_last == "l":
-                        print(f"Removing {full_day[city_tp_last]} from total cost for {day} as a full day in a {city_tp_last.upper()} cost city.")
-                        total -= full_day[city_tp_last]
-                        print(f"Adding {full_day[city_tp]} to total cost for {day} as a full day in a {city_tp.upper()} cost city.")
-                        total += full_day[city_tp]
+                if i == first_day:
+                    # Handle overlapping projects
+                    if current_dt > day:
+                        if day in days:
+                            remove(day, days[day])
+                            # Handle conflicting city types 
+                            if city_tp == "l" and city_tp_last == "h":
+                                add(day, full_day[city_tp_last])
+                            else:
+                                add(day, full_day[city_tp])
+                    # Handle consecutive projects
+                    elif current_dt == day:
+                        # Replace day before with a full day 
+                        day_before = day - timedelta(1)
+                        remove(day_before, days[day_before])
+                        add(day_before, full_day[city_tp_last])
+                        # Add current day
+                        if i == last_day:
+                            add(day, travel_day[city_tp])
+                        else:
+                            add(day, full_day[city_tp])                       
+                    else:
+                        add(day, travel_day[city_tp])
+                elif i == last_day:
+                    add(day, travel_day[city_tp])
+                else:
+                    add(day, full_day[city_tp]) 
 
         current_dt = end_dt + timedelta(days=1)
         
@@ -107,5 +129,6 @@ if __name__ == "__main__":
     print("Define a Set by entering Projects in chronological order...")
     set = []
     get_projects()
-    calculate(set)
+    calculate(set)   
+
     
